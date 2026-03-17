@@ -21,6 +21,9 @@ make serve
 
 # Serve static files only (client-side keyword search)
 make serve-static
+
+# Run MCP server (stdio transport)
+make serve-mcp
 ```
 
 Individual file commands (prefix with `./venv/bin/python3` or activate venv):
@@ -34,7 +37,7 @@ python3 convert.py info FILE.sab
 Take headless screenshots for visual verification:
 
 ```bash
-chromium --headless --no-sandbox --disable-gpu --screenshot=/tmp/page.png --window-size=1200,3000 "file:///home/hans/symbolics-docs/output/path/to/file.html"
+chromium --headless --no-sandbox --disable-gpu --screenshot=/tmp/page.png --window-size=1200,3000 "file:///home/hans/genera-docs/output/path/to/file.html"
 ```
 
 There are no tests.
@@ -80,9 +83,41 @@ SAB binary → sab_reader.py (46 type codes, dispatch table)
 Uses a separate venv with PyTorch + sentence-transformers (~2.3GB disk, CPU-only). Setup and build are handled by the Makefile (`make setup-search`, `make embeddings`).
 
 - **`build_embeddings.py`**: Extracts text from `output/**/*.xml`, chunks, embeds with `BAAI/bge-large-en-v1.5`, saves to `output/semantic-index/`
+- **`doc_search.py`**: Shared search logic used by both `search_server.py` and `mcp_server.py`. Provides `slugify()`, `load_keyword_index()`, `kw_search()`, and `extract_records_from_xml()`.
 - **`search_server.py`**: FastAPI app with `/api/search?q=...&mode=semantic|keyword|hybrid` and `/api/status`. Mounts `output/` as static files.
 - **`static/search-semantic.js`**: Client-side code on the search page that probes the API; falls back to keyword-only search.js if server is unavailable.
 - **`static/header-search.js`**: Global dropdown search in the fixed header bar. Probes the API, falls back to client-side keyword search from `search-index.json`.
+
+## MCP Server
+
+An MCP (Model Context Protocol) server exposes the documentation to LLMs via stdio transport. It uses the lightweight converter venv (no PyTorch required).
+
+```bash
+make setup-mcp   # one-time: installs fastmcp into venv
+make serve-mcp   # run the server
+```
+
+- **`mcp_server.py`**: FastMCP server providing four tools:
+  - **`search_docs`**: Keyword search across all entries (same scoring as `search_server.py`)
+  - **`read_entry`**: Read full text of a documentation entry by name (parses XML source)
+  - **`list_topics`**: Browse available documentation files with entry counts and type breakdowns
+  - **`lookup_symbol`**: Look up Lisp symbols with package-prefix-aware matching and optional type filtering
+
+### Claude Code Setup
+
+Add to `~/.claude/settings.json` or `.claude/settings.local.json`:
+
+```json
+{
+  "mcpServers": {
+    "genera-docs": {
+      "command": "/absolute/path/to/genera-docs/venv/bin/python3",
+      "args": ["mcp_server.py", "--output", "output"],
+      "cwd": "/absolute/path/to/genera-docs"
+    }
+  }
+}
+```
 
 ## SAB Source Location
 

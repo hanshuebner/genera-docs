@@ -67,14 +67,14 @@ The site includes a fixed header bar on every page with the Symbolics logo, site
 To run the documentation server automatically at boot:
 
 ```bash
-sudo cp symbolics-docs.service /etc/systemd/system/
+sudo cp genera-docs.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now symbolics-docs
+sudo systemctl enable --now genera-docs
 ```
 
-Check status with `systemctl status symbolics-docs` and logs with `journalctl -u symbolics-docs`.
+Check status with `systemctl status genera-docs` and logs with `journalctl -u genera-docs`.
 
-To change the port, edit the `ExecStart` line in `/etc/systemd/system/symbolics-docs.service` and run `sudo systemctl daemon-reload && sudo systemctl restart symbolics-docs`.
+To change the port, edit the `ExecStart` line in `/etc/systemd/system/genera-docs.service` and run `sudo systemctl daemon-reload && sudo systemctl restart genera-docs`.
 
 ## Working with Individual Files
 

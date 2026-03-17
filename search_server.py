@@ -11,7 +11,6 @@ Usage:
 import argparse
 import json
 import os
-import re
 import sys
 
 import numpy as np
@@ -21,16 +20,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sentence_transformers import SentenceTransformer
 
+from doc_search import slugify, load_keyword_index, kw_search as _kw_search
+
 
 app = FastAPI(title="Genera Documentation Search")
-
-_SLUG_RE = re.compile(r'[^a-z0-9]+')
-
-def _slugify(name):
-    """Convert a record name to a URL-safe anchor ID."""
-    s = str(name).lower()
-    s = _SLUG_RE.sub('-', s).strip('-')
-    return s or 'section'
 
 # Global state loaded at startup
 model = None
@@ -64,10 +57,8 @@ def load_data(output_dir, model_name):
         print(f"  Expected: {emb_path}")
 
     # Load keyword index
-    kw_path = os.path.join(output_dir, 'search-index.json')
-    if os.path.exists(kw_path):
-        with open(kw_path, 'r', encoding='utf-8') as f:
-            keyword_index = json.load(f)
+    keyword_index = load_keyword_index(output_dir)
+    if keyword_index:
         print(f"  Keyword index: {len(keyword_index)} entries")
     else:
         print("Warning: No keyword index found.")
@@ -95,7 +86,7 @@ def semantic_search(query, limit=30):
             continue
         seen.add(key)
         path = chunk['html_path']
-        slug = _slugify(chunk['name'])
+        slug = slugify(chunk['name'])
         if slug:
             path = path + '#' + slug
         results.append({
@@ -113,45 +104,7 @@ def semantic_search(query, limit=30):
 
 def kw_search(query, limit=30):
     """Multi-term keyword matching replicating search.js scoring."""
-    if not keyword_index or not query:
-        return []
-
-    terms = query.lower().split()
-    terms = [t for t in terms if t]
-    if not terms:
-        return []
-
-    results = []
-    for entry in keyword_index:
-        title = (entry.get('title') or '').lower()
-        text = (entry.get('text') or '').lower()
-        etype = (entry.get('type') or '').lower()
-
-        score = 0
-        matched = True
-        for term in terms:
-            if term in title:
-                score += 10
-            elif term in etype:
-                score += 5
-            elif term in text:
-                score += 1
-            else:
-                matched = False
-                break
-
-        if matched and score > 0:
-            results.append({
-                'title': entry.get('title', ''),
-                'type': entry.get('type', ''),
-                'path': entry.get('path', ''),
-                'text': (entry.get('text') or '')[:200],
-                'score': score,
-                'source': 'keyword',
-            })
-
-    results.sort(key=lambda r: r['score'], reverse=True)
-    return results[:limit]
+    return _kw_search(keyword_index, query, limit=limit)
 
 
 def hybrid_search(query, limit=30, k=60):
